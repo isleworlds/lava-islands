@@ -23,7 +23,6 @@
       }
     </script>
     <style>
-      canvas, .xr-canvas, #xr-canvas, [class*="xr"] canvas { filter: brightness(1) !important; opacity: 1 !important; }
       #overlay {
         position: fixed; inset: 0; pointer-events: none; z-index: 100;
         font-family: Arial, sans-serif;
@@ -51,6 +50,8 @@
         pointer-events: none; transition: background 0.08s;
       }
       #flash.hit { background: rgba(255,0,0,0.45); }
+      /* Lava flash — orange tint distinct from fireball red */
+      #flash.lava { background: rgba(255,120,0,0.5); }
       #return-prompt {
         position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
         background: rgba(255,60,0,0.85); color: white; font-size: 20px; font-weight: bold;
@@ -137,7 +138,7 @@
           this.lives = 3;
           this.gameOver = false;
           this.levelComplete = false;
-          this.hitCooldown = 0;
+          this.hitCooldown = 0;    // shared cooldown covering fireball AND lava hits
           this.spawnPaused = 0;
           this.fireballs = [];
           this.gemCollected = false;
@@ -146,6 +147,7 @@
           this.time = 0;
           this.gameStartTime = 0;
           this.lastSpawnTime = 0;
+          this._tickThisFrame = false;
 
           this.add(new THREE.AmbientLight(0xffffff, 0.6));
           const dir = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -176,9 +178,16 @@
           return DEFAULT_LAYOUT;
         }
 
+        // ── COORDINATE MAPPING ────────────────────────────────────
+        // World: x=0 west wall, x=10 east wall, z=0 north wall, z=10 south wall
+        // Scene: mapX(x) = x - 5,  mapZ(z) = z - 9
+        // Inverse: worldX(sceneX) = sceneX + 5,  worldZ(sceneZ) = sceneZ + 9
         mapX(x) { return x - this.layout.room.width / 2; }
         mapZ(z) { return z - (this.layout.room.depth - 1); }
+        worldX(sx) { return sx + this.layout.room.width / 2; }
+        worldZ(sz) { return sz + (this.layout.room.depth - 1); }
 
+        // ── SCENE BUILD ───────────────────────────────────────────
         _buildLavaFloor() {
           const { width, depth } = this.layout.room;
           const canvas = document.createElement('canvas');
@@ -236,10 +245,73 @@
           this.add(this.gemMesh);
         }
 
-        // Main tick — called by both xb update() and our rAF loop
-        // Double-call protection via _tickThisFrame flag
+        // ── SAFE ZONE CHECK ───────────────────────────────────────
+        // Returns true if the given world-space x/z is on a safe surface
+        _isOnSafeGround(wx, wz) {
+          // Start zone: south end of room (world z >= 9.0)
+          if (wz >= 9.0) return true;
+
+          // Final platform
+          const p = this.layout.finalPlatform;
+          const pdx = wx - p.x, pdz = wz - p.z;
+          if (Math.sqrt(pdx*pdx + pdz*pdz) <= p.radius + 0.3) return true;
+
+          // Any island ellipse — with a small margin so edge-hopping feels fair
+          for (const isl of this.layout.islands) {
+            const dx = (wx - isl.x) / (isl.rx + 0.15);
+            const dz = (wz - isl.z) / (isl.rz + 0.15);
+            if (dx*dx + dz*dz <= 1.0) return true;
+          }
+
+          return false;
+        }
+
+        // ── LAVA CHECK ────────────────────────────────────────────
+        _checkLava() {
+          // Skip if already in a hit cooldown, or game over, or level complete
+          if (this.hitCooldown > 0 || this.gameOver || this.levelComplete) return;
+          const cam = this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null;
+          if (!cam) return;
+
+          // Convert scene camera position to world coordinates
+          const wx = this.worldX(cam.position.x);
+          const wz = this.worldZ(cam.position.z);
+
+          if (!this._isOnSafeGround(wx, wz)) {
+            this._lavaHit();
+          }
+        }
+
+        _lavaHit() {
+          this.lives--;
+          this.hitCooldown = 2.5;
+          this._updateHearts();
+
+          // Orange flash (distinct from fireball red)
+          const flash = document.getElementById('flash');
+          flash.classList.add('lava');
+          setTimeout(() => flash.classList.remove('lava'), 400);
+
+          if (this.lives <= 0) {
+            this.gameOver = true;
+            this._clearFireballs();
+            sessionGems = Math.max(0, sessionGems - 1);
+            this._updateGem();
+            document.getElementById('game-over-gems').textContent = 'Gems collected: ' + sessionGems;
+            document.getElementById('game-over').classList.remove('hidden');
+          } else {
+            this.spawnPaused = 3;
+            this._clearFireballs();
+            const rp = document.getElementById('return-prompt');
+            rp.classList.remove('hidden');
+            setTimeout(() => rp.classList.add('hidden'), 3000);
+          }
+        }
+
+        // ── MAIN TICK ─────────────────────────────────────────────
         tick() {
           if (!this._ready) return;
+          // Double-call protection (called by both xb.update and rAF)
           if (this._tickThisFrame) return;
           this._tickThisFrame = true;
           setTimeout(() => { this._tickThisFrame = false; }, 0);
@@ -252,10 +324,12 @@
           if (this.hitCooldown > 0) this.hitCooldown -= dt;
           if (this.spawnPaused > 0) this.spawnPaused -= dt;
 
+          // Lava animation
           if (this.lavaTexture) {
             this.lavaTexture.offset.y -= 0.1 * dt;
             this.lavaTexture.offset.x += 0.05 * dt;
           }
+          // Gem bob
           if (this.gemMesh && this.gemMesh.visible) {
             this.gemMesh.rotation.y += 1.5 * dt;
             this.gemMesh.position.y = this.gemBaseY + Math.sin(this.time * 2.5) * 0.15;
@@ -263,18 +337,23 @@
 
           if (this.gameOver || this.levelComplete) return;
 
+          // Fireballs
           this._updateFireballs(dt);
           if (this.spawnPaused <= 0 && this.time - this.lastSpawnTime >= 5.0) {
             this._spawnFireball();
             this.lastSpawnTime = this.time;
           }
-          this._checkHit();
-          this._checkGem();
+
+          // Collision checks
+          this._checkHit();    // fireball → player
+          this._checkLava();   // player → lava
+          this._checkGem();    // player → final platform
           this._updateParticles(dt);
         }
 
         update() { this.tick(); }
 
+        // ── FIREBALL SYSTEM ───────────────────────────────────────
         _spawnFireball() {
           const elapsed = this.time - this.gameStartTime;
           const phase = elapsed >= 60 ? 3 : elapsed >= 30 ? 2 : 1;
@@ -371,6 +450,7 @@
           }
         }
 
+        // ── FIREBALL HIT ──────────────────────────────────────────
         _checkHit() {
           if (this.hitCooldown > 0) return;
           const cam = this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null;
@@ -400,6 +480,7 @@
           }
         }
 
+        // ── GEM COLLECTION ────────────────────────────────────────
         _checkGem() {
           if (this.gemCollected || !this.gemMesh?.visible) return;
           const cam = this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null;
@@ -440,12 +521,18 @@
           this.gemParticles.pts.geometry.attributes.position.needsUpdate = true;
         }
 
+        // ── HELPERS ───────────────────────────────────────────────
         _updateHearts() {
-          for (let i = 1; i <= 3; i++) document.getElementById('heart-'+i)?.classList.toggle('lost', i > this.lives);
+          for (let i = 1; i <= 3; i++)
+            document.getElementById('heart-'+i)?.classList.toggle('lost', i > this.lives);
         }
         _updateGem(flash=false) {
           document.getElementById('gem-value').textContent = sessionGems;
-          if (flash) { const el = document.getElementById('gem-count'); el.classList.add('flash-gem'); setTimeout(() => el.classList.remove('flash-gem'), 300); }
+          if (flash) {
+            const el = document.getElementById('gem-count');
+            el.classList.add('flash-gem');
+            setTimeout(() => el.classList.remove('flash-gem'), 300);
+          }
         }
         _clearFireballs() {
           this.fireballs.forEach(fb => { this.remove(fb.mesh); if (fb.cone) this.remove(fb.cone); });
@@ -463,6 +550,7 @@
         }
       }
 
+      // ── BOOT ──────────────────────────────────────────────────────
       document.addEventListener('DOMContentLoaded', async () => {
         const options = new xb.Options();
         options.setAppTitle('Lava Islands');
@@ -470,7 +558,7 @@
         const game = new LavaIslandsGame();
         xb.add(game);
         await xb.init(options);
-        // rAF loop drives the game independently of XR session state
+        // rAF loop drives game independently of XR session state
         function loop() { game.tick(); requestAnimationFrame(loop); }
         requestAnimationFrame(loop);
       });
