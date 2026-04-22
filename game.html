@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Lava Islands | XR Game Prototype</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>window.litDisableBundleWarning = true;</script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.10.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.10.0/build/addons/"
+        }
+      }
+    </script>
+    <style>
+      #overlay {
+        position: fixed; inset: 0; pointer-events: none; z-index: 100;
+        font-family: Arial, sans-serif;
+      }
+      #hearts { position: absolute; top: 24px; left: 24px; display: flex; gap: 10px; }
+      .heart {
+        width: 36px; height: 36px;
+        background: radial-gradient(circle at 35% 35%, #ff6b6b, #cc0000);
+        clip-path: path('M18 32 C8 24 0 18 0 10 C0 4.5 4.5 0 10 0 C13.3 0 16.3 1.7 18 4.3 C19.7 1.7 22.7 0 26 0 C31.5 0 36 4.5 36 10 C36 18 28 24 18 32Z');
+        transition: opacity 0.4s;
+        filter: drop-shadow(0 0 6px rgba(255,80,80,0.7));
+      }
+      .heart.lost { opacity: 0.18; filter: none; }
+      #gem-count {
+        position: absolute; top: 24px; right: 24px;
+        background: rgba(0,0,0,0.55); border: 1.5px solid rgba(0,255,255,0.4);
+        border-radius: 20px; padding: 6px 18px 6px 12px;
+        color: #00ffff; font-size: 22px; font-weight: bold;
+        display: flex; align-items: center; gap: 8px;
+        text-shadow: 0 0 10px rgba(0,255,255,0.8); transition: transform 0.15s;
+      }
+      #gem-count.flash-gem { transform: scale(1.3); color: #fff; }
+      #flash {
+        position: absolute; inset: 0; background: rgba(255,0,0,0);
+        pointer-events: none; transition: background 0.08s;
+      }
+      #flash.hit { background: rgba(255,0,0,0.45); }
+      #return-prompt {
+        position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+        background: rgba(255,60,0,0.85); color: white; font-size: 20px; font-weight: bold;
+        padding: 14px 28px; border-radius: 12px; text-align: center; pointer-events: none;
+      }
+      #return-prompt.hidden { display: none; }
+      #game-over {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        background: rgba(0,0,0,0.88); color: white;
+        text-align: center; padding: 32px; pointer-events: all;
+      }
+      #game-over.hidden { display: none; }
+      #game-over h1 { font-size: 48px; color: #ff3333; text-shadow: 0 0 30px rgba(255,50,50,0.8); margin-bottom: 12px; }
+      #game-over p { font-size: 20px; color: #ccc; margin-bottom: 32px; }
+      #game-over button {
+        background: #ff4400; color: white; border: none; font-size: 18px; font-weight: bold;
+        padding: 14px 36px; border-radius: 8px; cursor: pointer; pointer-events: all;
+      }
+      #game-over button:hover { background: #ff6622; }
+      #level-complete {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        background: rgba(0,40,40,0.85); color: white;
+        text-align: center; padding: 32px; pointer-events: none;
+      }
+      #level-complete.hidden { display: none; }
+      #level-complete h1 { font-size: 48px; color: #00ffcc; text-shadow: 0 0 30px rgba(0,255,200,0.8); margin-bottom: 12px; }
+      #level-complete p { font-size: 22px; color: #aaa; }
+    </style>
+  </head>
+  <body>
+    <div class="background-image" style="background-color:transparent"></div>
+    <div id="overlay">
+      <div id="hearts">
+        <div class="heart" id="heart-1"></div>
+        <div class="heart" id="heart-2"></div>
+        <div class="heart" id="heart-3"></div>
+      </div>
+      <div id="gem-count"><span>◈</span><span id="gem-value">0</span></div>
+      <div id="flash"></div>
+      <div id="return-prompt" class="hidden">⬇ RETURN TO START ZONE</div>
+      <div id="game-over" class="hidden">
+        <h1>GAME OVER</h1>
+        <p id="game-over-gems">Gems collected: 0</p>
+        <button id="restart-btn">PLAY AGAIN</button>
+      </div>
+      <div id="level-complete" class="hidden">
+        <h1>GEM COLLECTED!</h1>
+        <p>Level complete — walk back to start</p>
+      </div>
+    </div>
+
+    <script type="module">
+      import 'xrblocks/addons/simulator/SimulatorAddons.js';
+      import * as THREE from 'three';
+      import * as xb from 'xrblocks';
+
+      let sessionGems = 0;
+
+      const DEFAULT_LAYOUT = {
+        room: { width: 10, depth: 10 },
+        islands: [
+          { id: 1, x: 2.0, z: 8.5, rx: 0.55, rz: 0.40 },
+          { id: 2, x: 4.5, z: 8.0, rx: 0.60, rz: 0.38 },
+          { id: 3, x: 7.2, z: 7.8, rx: 0.50, rz: 0.42 },
+          { id: 4, x: 1.5, z: 6.2, rx: 0.65, rz: 0.36 },
+          { id: 5, x: 5.0, z: 6.0, rx: 0.55, rz: 0.44 },
+          { id: 6, x: 8.0, z: 5.5, rx: 0.60, rz: 0.40 },
+          { id: 7, x: 2.8, z: 4.0, rx: 0.58, rz: 0.38 },
+          { id: 8, x: 6.5, z: 3.5, rx: 0.62, rz: 0.40 }
+        ],
+        finalPlatform: { x: 5.0, z: 1.0, radius: 1.2 },
+        spawnZones: {
+          north: { active: true, xMin: 1.0, xMax: 9.0 },
+          east:  { active: true, zMin: 1.0, zMax: 8.0 },
+          west:  { active: true, zMin: 1.0, zMax: 8.0 }
+        }
+      };
+
+      class LavaIslandsGame extends xb.Script {
+
+        async init() {
+          this.lives = 3;
+          this.gameOver = false;
+          this.levelComplete = false;
+          this.hitCooldown = 0;
+          this.spawnPaused = 0;
+          this.fireballs = [];
+          this.gemCollected = false;
+          this.gemParticles = null;
+          this._lastT = null;
+          this.time = 0;
+          this.gameStartTime = 0;
+          this.lastSpawnTime = 0;
+
+          this.add(new THREE.AmbientLight(0xffffff, 0.6));
+          const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+          dir.position.set(2, 10, 5);
+          this.add(dir);
+
+          this.layout = await this._fetchLayout();
+          this._buildLavaFloor();
+          this._buildIslands();
+          this._buildFinalPlatform();
+
+          this._updateHearts();
+          this._updateGem();
+
+          document.getElementById('restart-btn').addEventListener('click', () => this._restart());
+
+          this._ready = true;
+          window._game = this;
+          console.log('LavaIslands ready');
+        }
+
+        async _fetchLayout() {
+          try {
+            const r = await fetch('layout.json');
+            if (r.ok) { console.log('Loaded layout.json'); return await r.json(); }
+          } catch(e) {}
+          console.warn('Using default layout');
+          return DEFAULT_LAYOUT;
+        }
+
+        mapX(x) { return x - this.layout.room.width / 2; }
+        mapZ(z) { return z - (this.layout.room.depth - 1); }
+
+        _buildLavaFloor() {
+          const { width, depth } = this.layout.room;
+          const canvas = document.createElement('canvas');
+          canvas.width = 512; canvas.height = 512;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#cc2200'; ctx.fillRect(0, 0, 512, 512);
+          for (let i = 0; i < 800; i++) {
+            ctx.fillStyle = Math.random() > 0.6 ? '#ff6600' : '#880000';
+            ctx.beginPath();
+            ctx.arc(Math.random()*512, Math.random()*512, Math.random()*15, 0, Math.PI*2);
+            ctx.fill();
+          }
+          this.lavaTexture = new THREE.CanvasTexture(canvas);
+          this.lavaTexture.wrapS = THREE.RepeatWrapping;
+          this.lavaTexture.wrapT = THREE.RepeatWrapping;
+          const mesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(width, depth, 32, 32),
+            new THREE.MeshBasicMaterial({ color: 0xffaa44, map: this.lavaTexture, transparent: true, opacity: 0.6, depthWrite: false })
+          );
+          mesh.rotation.x = -Math.PI / 2;
+          mesh.position.set(0, 0, this.mapZ(depth / 2));
+          this.add(mesh);
+        }
+
+        _buildIslands() {
+          this.layout.islands.forEach(isl => {
+            const geo = new THREE.RingGeometry(0.85, 1.0, 32);
+            geo.scale(isl.rx, isl.rz, 1);
+            const mesh = new THREE.Mesh(geo,
+              new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
+            );
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(this.mapX(isl.x), 0.01, this.mapZ(isl.z));
+            this.add(mesh);
+          });
+        }
+
+        _buildFinalPlatform() {
+          const p = this.layout.finalPlatform;
+          const disc = new THREE.Mesh(
+            new THREE.CircleGeometry(p.radius, 32),
+            new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 })
+          );
+          disc.rotation.x = -Math.PI / 2;
+          disc.position.set(this.mapX(p.x), 0.02, this.mapZ(p.z));
+          this.add(disc);
+          this.platformPos = new THREE.Vector3(this.mapX(p.x), 0, this.mapZ(p.z));
+
+          this.gemMesh = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.3, 0),
+            new THREE.MeshPhongMaterial({ color: 0x00ffff, emissive: 0x004488, shininess: 100, transparent: true, opacity: 0.9 })
+          );
+          this.gemBaseY = 1.2;
+          this.gemMesh.position.set(this.mapX(p.x), this.gemBaseY, this.mapZ(p.z));
+          this.add(this.gemMesh);
+        }
+
+        // Main tick — called by both xb update() and our rAF loop
+        // Double-call protection via _tickThisFrame flag
+        tick() {
+          if (!this._ready) return;
+          if (this._tickThisFrame) return;
+          this._tickThisFrame = true;
+          setTimeout(() => { this._tickThisFrame = false; }, 0);
+
+          const now = performance.now() / 1000;
+          const dt = this._lastT !== null ? Math.min(now - this._lastT, 0.05) : 0.016;
+          this._lastT = now;
+          this.time += dt;
+
+          if (this.hitCooldown > 0) this.hitCooldown -= dt;
+          if (this.spawnPaused > 0) this.spawnPaused -= dt;
+
+          if (this.lavaTexture) {
+            this.lavaTexture.offset.y -= 0.1 * dt;
+            this.lavaTexture.offset.x += 0.05 * dt;
+          }
+          if (this.gemMesh && this.gemMesh.visible) {
+            this.gemMesh.rotation.y += 1.5 * dt;
+            this.gemMesh.position.y = this.gemBaseY + Math.sin(this.time * 2.5) * 0.15;
+          }
+
+          if (this.gameOver || this.levelComplete) return;
+
+          this._updateFireballs(dt);
+          if (this.spawnPaused <= 0 && this.time - this.lastSpawnTime >= 5.0) {
+            this._spawnFireball();
+            this.lastSpawnTime = this.time;
+          }
+          this._checkHit();
+          this._checkGem();
+          this._updateParticles(dt);
+        }
+
+        update() { this.tick(); }
+
+        _spawnFireball() {
+          const elapsed = this.time - this.gameStartTime;
+          const phase = elapsed >= 60 ? 3 : elapsed >= 30 ? 2 : 1;
+          let walls = phase >= 2 ? ['north','east','west'] : ['north'];
+          walls = walls.filter(w => this.layout.spawnZones[w]?.active);
+          if (!walls.length) return;
+          const wall = walls[Math.floor(Math.random() * walls.length)];
+          const type = phase >= 2 && Math.random() > 0.5 ? 'bouncer' : 'streaker';
+          const heights = [0.5, 1.0, 1.7];
+          let height = 1.0;
+          if (phase === 2) height = type === 'bouncer' ? 1.0 : heights[Math.floor(Math.random()*3)];
+          else if (phase === 3) height = heights[Math.floor(Math.random()*3)];
+
+          const zone = this.layout.spawnZones[wall];
+          let sx, sz, dx, dz;
+          if (wall === 'north')     { sx = zone.xMin + Math.random()*(zone.xMax-zone.xMin); sz = 0;  dx = 0;  dz = 1; }
+          else if (wall === 'east') { sx = 10; sz = zone.zMin + Math.random()*(zone.zMax-zone.zMin); dx = -1; dz = 0; }
+          else                      { sx = 0;  sz = zone.zMin + Math.random()*(zone.zMax-zone.zMin); dx = 1;  dz = 0; }
+
+          const pos = new THREE.Vector3(this.mapX(sx), height, this.mapZ(sz));
+          this._createFireball(type, pos, new THREE.Vector3(dx, 0, dz).normalize(), phase);
+        }
+
+        _createFireball(type, pos, dir, phase) {
+          const fb = { type, phase, dir: dir.clone(), speed: type === 'streaker' ? 6 : 2.5,
+            bounceCount: 0, targetHeight: pos.y, telegraphTimer: 0.5,
+            state: type === 'streaker' ? 'telegraph' : 'active', mesh: null, cone: null };
+
+          if (type === 'streaker') {
+            fb.mesh = new THREE.Mesh(
+              new THREE.SphereGeometry(0.25, 16, 16),
+              new THREE.MeshPhongMaterial({ color: 0xffffff, emissive: 0x0088ff, emissiveIntensity: 2 })
+            );
+            fb.mesh.position.copy(pos); fb.mesh.visible = false;
+            const cg = new THREE.ConeGeometry(0.3, 1.5, 16);
+            cg.translate(0, 0.75, 0); cg.rotateX(Math.PI/2);
+            fb.cone = new THREE.Mesh(cg,
+              new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending })
+            );
+            fb.cone.position.copy(pos);
+            fb.cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), dir);
+            this.add(fb.cone);
+          } else {
+            fb.mesh = new THREE.Mesh(
+              new THREE.SphereGeometry(0.35, 16, 16),
+              new THREE.MeshPhongMaterial({ color: 0xff4400, emissive: 0xaa2200, emissiveIntensity: 1 })
+            );
+            fb.mesh.position.copy(pos);
+          }
+          this.add(fb.mesh);
+          this.fireballs.push(fb);
+        }
+
+        _updateFireballs(dt) {
+          const minX = this.mapX(0), maxX = this.mapX(10);
+          const minZ = this.mapZ(0), maxZ = this.mapZ(10);
+          for (let i = this.fireballs.length - 1; i >= 0; i--) {
+            const fb = this.fireballs[i];
+            if (fb.state === 'telegraph') {
+              fb.telegraphTimer -= dt;
+              if (fb.cone) fb.cone.material.opacity = 0.2 + 0.6*Math.abs(Math.sin(fb.telegraphTimer*40));
+              if (fb.telegraphTimer <= 0) {
+                fb.state = 'active'; fb.mesh.visible = true;
+                if (fb.cone) { this.remove(fb.cone); fb.cone = null; }
+              }
+            } else if (fb.state === 'active') {
+              fb.mesh.position.addScaledVector(fb.dir, fb.speed * dt);
+              if (Math.abs(fb.mesh.position.y - fb.targetHeight) > 0.01)
+                fb.mesh.position.y = THREE.MathUtils.lerp(fb.mesh.position.y, fb.targetHeight, 4*dt);
+              const x = fb.mesh.position.x, z = fb.mesh.position.z;
+              if (fb.type === 'streaker') {
+                if (x < minX-1 || x > maxX+1 || z < minZ-1 || z > maxZ+1) fb.state = 'dead';
+              } else {
+                let b = false;
+                if (x < minX) { fb.mesh.position.x = minX; fb.dir.x *= -1; b = true; }
+                else if (x > maxX) { fb.mesh.position.x = maxX; fb.dir.x *= -1; b = true; }
+                if (z < minZ) { fb.mesh.position.z = minZ; fb.dir.z *= -1; b = true; }
+                else if (z > maxZ) { fb.mesh.position.z = maxZ; fb.dir.z *= -1; b = true; }
+                if (b) {
+                  fb.bounceCount++;
+                  if (fb.bounceCount > 3) fb.state = 'sinking';
+                  else if (fb.phase === 3) fb.targetHeight = [0.5,1.0,1.7][Math.floor(Math.random()*3)];
+                }
+              }
+            } else if (fb.state === 'sinking') {
+              fb.mesh.position.y -= dt;
+              if (fb.mesh.position.y < -0.5) fb.state = 'dead';
+            }
+            if (fb.state === 'dead') {
+              this.remove(fb.mesh);
+              if (fb.cone) this.remove(fb.cone);
+              this.fireballs.splice(i, 1);
+            }
+          }
+        }
+
+        _checkHit() {
+          if (this.hitCooldown > 0) return;
+          const cam = this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null;
+          if (!cam) return;
+          for (const fb of this.fireballs) {
+            if (fb.state !== 'active') continue;
+            if (cam.position.distanceTo(fb.mesh.position) < 1.5) { this._playerHit(); break; }
+          }
+        }
+
+        _playerHit() {
+          this.lives--; this.hitCooldown = 2.5;
+          this._updateHearts();
+          const flash = document.getElementById('flash');
+          flash.classList.add('hit');
+          setTimeout(() => flash.classList.remove('hit'), 350);
+          if (this.lives <= 0) {
+            this.gameOver = true; this._clearFireballs();
+            sessionGems = Math.max(0, sessionGems - 1); this._updateGem();
+            document.getElementById('game-over-gems').textContent = 'Gems collected: ' + sessionGems;
+            document.getElementById('game-over').classList.remove('hidden');
+          } else {
+            this.spawnPaused = 3; this._clearFireballs();
+            const rp = document.getElementById('return-prompt');
+            rp.classList.remove('hidden');
+            setTimeout(() => rp.classList.add('hidden'), 3000);
+          }
+        }
+
+        _checkGem() {
+          if (this.gemCollected || !this.gemMesh?.visible) return;
+          const cam = this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null;
+          if (!cam) return;
+          if (cam.position.distanceTo(this.platformPos) < this.layout.finalPlatform.radius + 0.5) {
+            this.gemCollected = true; this.levelComplete = true;
+            this._clearFireballs(); sessionGems++; this._updateGem(true);
+            this._spawnParticles(cam.position); this.gemMesh.visible = false;
+            document.getElementById('level-complete').classList.remove('hidden');
+            setTimeout(() => { document.getElementById('level-complete').classList.add('hidden'); this._restart(); }, 4000);
+          }
+        }
+
+        _spawnParticles(target) {
+          const count = 120, pos = new Float32Array(count*3), vels = [];
+          const o = this.gemMesh.position.clone();
+          for (let i = 0; i < count; i++) {
+            pos[i*3]=o.x; pos[i*3+1]=o.y; pos[i*3+2]=o.z;
+            const v = target.clone().sub(o).normalize()
+              .add(new THREE.Vector3((Math.random()-.5)*1.2,(Math.random()-.5)*1.2,(Math.random()-.5)*1.2))
+              .normalize().multiplyScalar(2+Math.random()*3);
+            vels.push(v);
+          }
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+          const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x00ffcc, size: 0.07, transparent: true, opacity: 1 }));
+          this.add(pts);
+          this.gemParticles = { pts, vels, pos, life: 1.5 };
+        }
+
+        _updateParticles(dt) {
+          if (!this.gemParticles) return;
+          this.gemParticles.life -= dt;
+          if (this.gemParticles.life <= 0) { this.remove(this.gemParticles.pts); this.gemParticles = null; return; }
+          this.gemParticles.pts.material.opacity = Math.max(0, this.gemParticles.life/1.5);
+          const { vels, pos } = this.gemParticles;
+          for (let i = 0; i < vels.length; i++) { pos[i*3]+=vels[i].x*dt; pos[i*3+1]+=vels[i].y*dt; pos[i*3+2]+=vels[i].z*dt; }
+          this.gemParticles.pts.geometry.attributes.position.needsUpdate = true;
+        }
+
+        _updateHearts() {
+          for (let i = 1; i <= 3; i++) document.getElementById('heart-'+i)?.classList.toggle('lost', i > this.lives);
+        }
+        _updateGem(flash=false) {
+          document.getElementById('gem-value').textContent = sessionGems;
+          if (flash) { const el = document.getElementById('gem-count'); el.classList.add('flash-gem'); setTimeout(() => el.classList.remove('flash-gem'), 300); }
+        }
+        _clearFireballs() {
+          this.fireballs.forEach(fb => { this.remove(fb.mesh); if (fb.cone) this.remove(fb.cone); });
+          this.fireballs = [];
+        }
+        _restart() {
+          this.lives = 3; this.gameOver = false; this.levelComplete = false;
+          this.hitCooldown = 0; this.spawnPaused = 0; this.gemCollected = false;
+          this.lastSpawnTime = this.time; this.gameStartTime = this.time;
+          this._clearFireballs();
+          if (this.gemMesh) this.gemMesh.visible = true;
+          document.getElementById('game-over').classList.add('hidden');
+          document.getElementById('level-complete').classList.add('hidden');
+          this._updateHearts(); this._updateGem();
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        const options = new xb.Options();
+        options.setAppTitle('Lava Islands');
+        options.simulator.defaultMode = xb.SimulatorMode.POSE;
+        const game = new LavaIslandsGame();
+        xb.add(game);
+        await xb.init(options);
+        // rAF loop drives the game independently of XR session state
+        function loop() { game.tick(); requestAnimationFrame(loop); }
+        requestAnimationFrame(loop);
+      });
+    </script>
+  </body>
+</html>

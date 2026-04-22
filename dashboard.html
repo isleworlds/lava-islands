@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lava Islands — Operator Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3e;
+    --lava: #ff4c00;
+    --lava-dim: #7a2500;
+    --green: #00e87a;
+    --yellow: #ffd700;
+    --red: #ff3333;
+    --blue: #4fc3f7;
+    --text: #e8e8f0;
+    --muted: #6a6a8a;
+    --island-fill: rgba(80, 160, 255, 0.18);
+    --island-stroke: #4fc3f7;
+    --platform-fill: rgba(255, 200, 0, 0.18);
+    --platform-stroke: #ffd700;
+    --spawn-fill: rgba(255, 76, 0, 0.08);
+    --spawn-stroke: #ff4c00;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* TOP BAR */
+  #topbar {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 10px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  #topbar .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.12em;
+    color: var(--lava);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  #topbar .logo span { color: var(--muted); }
+
+  .tb-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+
+  #layout-name-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+
+  #layout-name-wrap label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  #layout-name {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    width: 220px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #layout-name:focus { border-color: var(--blue); }
+
+  #btn-save {
+    background: var(--lava);
+    color: #fff;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 7px 18px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+  #btn-save:hover { background: #ff6a2a; }
+  #btn-save:active { transform: scale(0.97); }
+
+  #btn-reset {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  #btn-reset:hover { color: var(--text); border-color: var(--text); }
+
+  #save-status {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+  }
+  #save-status.show { opacity: 1; }
+
+  /* LEGEND */
+  #legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .leg-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .leg-dot { width: 10px; height: 3px; border-radius: 2px; }
+
+  /* MAIN LAYOUT */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* SIDEBAR */
+  #sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 16px 12px;
+    gap: 20px;
+  }
+
+  .side-section h3 {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .island-list { display: flex; flex-direction: column; gap: 4px; }
+
+  .island-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border: 1px solid transparent;
+  }
+  .island-row:hover { background: var(--surface2); }
+  .island-row.selected { background: var(--surface2); border-color: var(--island-stroke); }
+  .island-row.platform-row.selected { border-color: var(--platform-stroke); }
+
+  .island-row .iname {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--blue);
+  }
+  .island-row.platform-row .iname { color: var(--yellow); }
+
+  .island-row .icoords {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+  }
+
+  /* SPAWN ZONE TOGGLES */
+  .spawn-toggles { display: flex; flex-direction: column; gap: 8px; }
+
+  .spawn-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+
+  .spawn-toggle label {
+    font-size: 11px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .spawn-toggle input[type=checkbox] {
+    accent-color: var(--lava);
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+  }
+
+  .spawn-wall-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--lava);
+    letter-spacing: 0.08em;
+  }
+
+  /* SPAWN RANGE INPUTS */
+  .spawn-range { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .spawn-range-row { display: flex; align-items: center; gap: 6px; }
+  .spawn-range-row label { font-size: 9px; color: var(--muted); width: 28px; text-align: right; }
+  .spawn-range-row input[type=range] {
+    flex: 1;
+    accent-color: var(--lava);
+    height: 3px;
+  }
+  .spawn-range-row .rv {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    width: 28px;
+  }
+
+  /* DISTANCE READOUT */
+  #dist-readout {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    min-height: 44px;
+    color: var(--muted);
+    line-height: 1.6;
+    transition: border-color 0.2s;
+  }
+  #dist-readout.active { border-color: var(--blue); }
+  #dist-readout .dr-value { font-size: 13px; font-weight: 700; }
+  #dist-readout .dr-value.green { color: var(--green); }
+  #dist-readout .dr-value.yellow { color: var(--yellow); }
+  #dist-readout .dr-value.red { color: var(--red); }
+
+  /* CANVAS AREA */
+  #canvas-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: var(--bg);
+    position: relative;
+  }
+
+  canvas#grid {
+    display: block;
+    cursor: default;
+  }
+
+  /* FOOTER */
+  #footer {
+    height: 28px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+  #footer span {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  #footer .cursor-pos { color: var(--blue); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="logo">Lava Islands <span>/ Operator</span></div>
+  <div class="tb-sep"></div>
+  <div id="layout-name-wrap">
+    <label>Layout</label>
+    <input id="layout-name" type="text" value="playtest-04-21" spellcheck="false" />
+  </div>
+  <button id="btn-save">Save layout.json</button>
+  <button id="btn-reset">Reset</button>
+  <span id="save-status">✓ Saved</span>
+  <div class="tb-sep"></div>
+  <div id="legend">
+    <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>&lt;2ft easy</div>
+    <div class="leg-item"><div class="leg-dot" style="background:var(--yellow)"></div>2–4ft challenge</div>
+    <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>&gt;4ft hard gap</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+
+    <div class="side-section">
+      <h3>Islands</h3>
+      <div class="island-list" id="island-list"></div>
+    </div>
+
+    <div class="side-section">
+      <h3>Live Distance</h3>
+      <div id="dist-readout">Drag an island to see edge-to-edge distances</div>
+    </div>
+
+    <div class="side-section">
+      <h3>Spawn Zones</h3>
+      <div class="spawn-toggles">
+        <div class="spawn-toggle">
+          <label>
+            <input type="checkbox" id="spawn-north" checked>
+            <span class="spawn-wall-label">NORTH</span>
+          </label>
+        </div>
+        <div id="north-range" class="spawn-range" style="padding:0 4px">
+          <div class="spawn-range-row">
+            <label>xMin</label>
+            <input type="range" id="north-xmin" min="0" max="10" step="0.1" value="1.0">
+            <span class="rv" id="north-xmin-v">1.0m</span>
+          </div>
+          <div class="spawn-range-row">
+            <label>xMax</label>
+            <input type="range" id="north-xmax" min="0" max="10" step="0.1" value="9.0">
+            <span class="rv" id="north-xmax-v">9.0m</span>
+          </div>
+        </div>
+
+        <div class="spawn-toggle">
+          <label>
+            <input type="checkbox" id="spawn-east" checked>
+            <span class="spawn-wall-label">EAST</span>
+          </label>
+        </div>
+        <div id="east-range" class="spawn-range" style="padding:0 4px">
+          <div class="spawn-range-row">
+            <label>zMin</label>
+            <input type="range" id="east-zmin" min="0" max="10" step="0.1" value="1.0">
+            <span class="rv" id="east-zmin-v">1.0m</span>
+          </div>
+          <div class="spawn-range-row">
+            <label>zMax</label>
+            <input type="range" id="east-zmax" min="0" max="10" step="0.1" value="8.0">
+            <span class="rv" id="east-zmax-v">8.0m</span>
+          </div>
+        </div>
+
+        <div class="spawn-toggle">
+          <label>
+            <input type="checkbox" id="spawn-west" checked>
+            <span class="spawn-wall-label">WEST</span>
+          </label>
+        </div>
+        <div id="west-range" class="spawn-range" style="padding:0 4px">
+          <div class="spawn-range-row">
+            <label>zMin</label>
+            <input type="range" id="west-zmin" min="0" max="10" step="0.1" value="1.0">
+            <span class="rv" id="west-zmin-v">1.0m</span>
+          </div>
+          <div class="spawn-range-row">
+            <label>zMax</label>
+            <input type="range" id="west-zmax" min="0" max="10" step="0.1" value="8.0">
+            <span class="rv" id="west-zmax-v">8.0m</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CANVAS -->
+  <div id="canvas-wrap">
+    <canvas id="grid"></canvas>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div id="footer">
+  <span>10m × 10m room</span>
+  <span>|</span>
+  <span class="cursor-pos" id="cursor-pos">—</span>
+  <span>|</span>
+  <span>Drag islands to position · Drag edges to resize · Spawn zones: drag brackets on walls</span>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const ROOM = { width: 10, depth: 10 };
+const RULER_W = 32;
+const PAD = 4;
+
+// Default island layout — staggered, two route options
+let islands = [
+  { id: 1, x: 2.0, z: 8.5, rx: 0.55, rz: 0.40 },
+  { id: 2, x: 4.5, z: 8.0, rx: 0.60, rz: 0.38 },
+  { id: 3, x: 7.2, z: 7.8, rx: 0.50, rz: 0.42 },
+  { id: 4, x: 1.5, z: 6.2, rx: 0.65, rz: 0.36 },
+  { id: 5, x: 5.0, z: 6.0, rx: 0.55, rz: 0.44 },
+  { id: 6, x: 8.0, z: 5.5, rx: 0.60, rz: 0.40 },
+  { id: 7, x: 2.8, z: 4.0, rx: 0.58, rz: 0.38 },
+  { id: 8, x: 6.5, z: 3.5, rx: 0.62, rz: 0.40 },
+];
+const finalPlatform = { x: 5.0, z: 1.0, radius: 1.2 };
+
+// Spawn zone config (editable)
+let spawnZones = {
+  north: { active: true, xMin: 1.0, xMax: 9.0 },
+  east:  { active: true, zMin: 1.0, zMax: 8.0 },
+  west:  { active: true, zMin: 1.0, zMax: 8.0 },
+};
+
+// ─── CANVAS SETUP ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('grid');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvas-wrap');
+
+let CELL, GRID_W, GRID_H, OX, OY;
+
+function resizeCanvas() {
+  const ww = wrap.clientWidth - PAD * 2;
+  const wh = wrap.clientHeight - PAD * 2;
+  const cellByW = (ww - RULER_W) / ROOM.width;
+  const cellByH = (wh - RULER_W) / ROOM.depth;
+  CELL = Math.min(cellByW, cellByH);
+  GRID_W = CELL * ROOM.width;
+  GRID_H = CELL * ROOM.depth;
+  canvas.width = GRID_W + RULER_W;
+  canvas.height = GRID_H + RULER_W;
+  OX = RULER_W;
+  OY = 0;
+}
+
+// ─── COORDINATE HELPERS ──────────────────────────────────────────────────────
+// World coords: x = east/west (0=west wall, 10=east), z = north/south (0=north, 10=south)
+// Screen: px = OX + x*CELL, py = OY + z*CELL  (north is top)
+
+function wx(x) { return OX + x * CELL; }
+function wz(z) { return OY + z * CELL; }
+function sx(px) { return (px - OX) / CELL; }
+function sz(py) { return (py - OY) / CELL; }
+
+// ─── DRAWING ─────────────────────────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBackground();
+  drawRulers();
+  drawGrid();
+  drawSpawnZones();
+  drawDistanceLines();
+  drawFinalPlatform();
+  drawIslands();
+  drawWallLabels();
+}
+
+function drawBackground() {
+  ctx.fillStyle = '#0d0d16';
+  ctx.fillRect(OX, OY, GRID_W, GRID_H);
+
+  // Subtle lava glow at south start zone
+  const gz = wz(ROOM.depth);
+  const grd = ctx.createLinearGradient(OX, gz - CELL * 0.8, OX, gz);
+  grd.addColorStop(0, 'rgba(255,76,0,0)');
+  grd.addColorStop(1, 'rgba(255,76,0,0.06)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(OX, gz - CELL * 0.8, GRID_W, CELL * 0.8);
+}
+
+function drawRulers() {
+  ctx.fillStyle = '#12121a';
+  ctx.fillRect(0, 0, RULER_W, canvas.height);
+  ctx.fillRect(OX, GRID_H, GRID_W, RULER_W);
+
+  ctx.fillStyle = '#2a2a3e';
+  ctx.fillRect(RULER_W - 1, 0, 1, GRID_H);
+  ctx.fillRect(OX, GRID_H, GRID_W, 1);
+
+  ctx.font = '9px Space Mono, monospace';
+  ctx.fillStyle = '#6a6a8a';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+
+  // Z-axis (left ruler) — metres top (north), bottom (south)
+  for (let z = 0; z <= ROOM.depth; z++) {
+    const py = wz(z);
+    const m = z + 'm';
+    const ft = Math.round(z * 3.281) + '\'';
+    ctx.fillStyle = '#6a6a8a';
+    ctx.fillText(m, RULER_W - 4, py);
+  }
+
+  // X-axis (bottom ruler)
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let x = 0; x <= ROOM.width; x++) {
+    const px = wx(x);
+    ctx.fillStyle = '#6a6a8a';
+    ctx.fillText(x + 'm', px, GRID_H + 4);
+  }
+
+  // Ft ticks X-axis — every foot
+  ctx.fillStyle = '#3a3a5a';
+  for (let ft = 0; ft <= Math.round(ROOM.width * 3.281); ft++) {
+    const px = wx(ft / 3.281);
+    ctx.fillRect(px, GRID_H + 1, 1, 3);
+  }
+  // Ft ticks Z-axis
+  for (let ft = 0; ft <= Math.round(ROOM.depth * 3.281); ft++) {
+    const py = wz(ft / 3.281);
+    ctx.fillRect(RULER_W - 3, py, 3, 1);
+  }
+}
+
+function drawGrid() {
+  ctx.strokeStyle = '#1e1e2e';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= ROOM.width; x++) {
+    ctx.beginPath();
+    ctx.moveTo(wx(x), wz(0));
+    ctx.lineTo(wx(x), wz(ROOM.depth));
+    ctx.stroke();
+  }
+  for (let z = 0; z <= ROOM.depth; z++) {
+    ctx.beginPath();
+    ctx.moveTo(wx(0), wz(z));
+    ctx.lineTo(wx(ROOM.width), wz(z));
+    ctx.stroke();
+  }
+
+  // Start zone marker (south)
+  ctx.fillStyle = 'rgba(255, 76, 0, 0.06)';
+  ctx.fillRect(wx(0), wz(ROOM.depth - 0.8), GRID_W, CELL * 0.8);
+  ctx.strokeStyle = 'rgba(255, 76, 0, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(wx(0), wz(ROOM.depth - 0.8));
+  ctx.lineTo(wx(ROOM.width), wz(ROOM.depth - 0.8));
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = '10px Syne, sans-serif';
+  ctx.fillStyle = 'rgba(255,76,0,0.5)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('START ZONE', wx(ROOM.width / 2), wz(ROOM.depth - 0.4));
+}
+
+function drawSpawnZones() {
+  const thickness = 8;
+  // North wall spawn zone
+  if (spawnZones.north.active) {
+    const x1 = wx(spawnZones.north.xMin);
+    const x2 = wx(spawnZones.north.xMax);
+    ctx.fillStyle = 'rgba(255,76,0,0.12)';
+    ctx.fillRect(x1, wz(0), x2 - x1, thickness);
+    ctx.strokeStyle = '#ff4c00';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, wz(0));
+    ctx.lineTo(x2, wz(0));
+    ctx.stroke();
+    // bracket handles
+    drawSpawnHandle(x1, wz(0), 'v');
+    drawSpawnHandle(x2, wz(0), 'v');
+  }
+  // East wall
+  if (spawnZones.east.active) {
+    const z1 = wz(spawnZones.east.zMin);
+    const z2 = wz(spawnZones.east.zMax);
+    ctx.fillStyle = 'rgba(255,76,0,0.12)';
+    ctx.fillRect(wx(ROOM.width) - thickness, z1, thickness, z2 - z1);
+    ctx.strokeStyle = '#ff4c00';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wx(ROOM.width), z1);
+    ctx.lineTo(wx(ROOM.width), z2);
+    ctx.stroke();
+    drawSpawnHandle(wx(ROOM.width), z1, 'h');
+    drawSpawnHandle(wx(ROOM.width), z2, 'h');
+  }
+  // West wall
+  if (spawnZones.west.active) {
+    const z1 = wz(spawnZones.west.zMin);
+    const z2 = wz(spawnZones.west.zMax);
+    ctx.fillStyle = 'rgba(255,76,0,0.12)';
+    ctx.fillRect(wx(0), z1, thickness, z2 - z1);
+    ctx.strokeStyle = '#ff4c00';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wx(0), z1);
+    ctx.lineTo(wx(0), z2);
+    ctx.stroke();
+    drawSpawnHandle(wx(0), z1, 'h');
+    drawSpawnHandle(wx(0), z2, 'h');
+  }
+}
+
+function drawSpawnHandle(px, py, orient) {
+  ctx.fillStyle = '#ff4c00';
+  ctx.beginPath();
+  ctx.arc(px, py, 5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function edgeToEdgeDist(a, b) {
+  // Ellipse-to-ellipse minimum edge distance (approximate via AABB)
+  const ax1 = a.x - a.rx, ax2 = a.x + a.rx;
+  const az1 = a.z - a.rz, az2 = a.z + a.rz;
+  const bx1 = b.x - b.rx, bx2 = b.x + b.rx;
+  const bz1 = b.z - b.rz, bz2 = b.z + b.rz;
+  const dx = Math.max(0, Math.max(ax1, bx1) - Math.min(ax2, bx2));
+  const dz = Math.max(0, Math.max(az1, bz1) - Math.min(az2, bz2));
+  return Math.sqrt(dx * dx + dz * dz);
+}
+
+function gapColor(distM) {
+  const ft = distM * 3.281;
+  if (ft < 2) return '#00e87a';
+  if (ft < 4) return '#ffd700';
+  return '#ff3333';
+}
+
+function drawDistanceLines() {
+  const all = [...islands];
+  for (let i = 0; i < all.length; i++) {
+    for (let j = i + 1; j < all.length; j++) {
+      const a = all[i], b = all[j];
+      const dist = edgeToEdgeDist(a, b);
+      if (dist > 4.5) continue; // don't clutter with very distant pairs
+      const col = gapColor(dist);
+      const alpha = dist > 3 ? 0.3 : 0.55;
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      ctx.moveTo(wx(a.x), wz(a.z));
+      ctx.lineTo(wx(b.x), wz(b.z));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+
+      // Distance label at midpoint
+      const mx = wx((a.x + b.x) / 2);
+      const mz = wz((a.z + b.z) / 2);
+      const ft = (dist * 3.281).toFixed(1);
+      ctx.font = '9px Space Mono, monospace';
+      ctx.fillStyle = col;
+      ctx.globalAlpha = 0.85;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ft + 'ft', mx, mz);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+function drawIslands() {
+  islands.forEach((isl, idx) => {
+    const cx = wx(isl.x), cz = wz(isl.z);
+    const rx = isl.rx * CELL, rz = isl.rz * CELL;
+    const isSelected = selectedIsland === idx;
+    const isDragging = dragState && dragState.idx === idx;
+
+    // Glow on selected/drag
+    if (isSelected || isDragging) {
+      ctx.save();
+      ctx.shadowColor = '#4fc3f7';
+      ctx.shadowBlur = 18;
+    }
+
+    // Fill
+    ctx.beginPath();
+    ctx.ellipse(cx, cz, rx, rz, 0, 0, Math.PI * 2);
+    ctx.fillStyle = isDragging ? 'rgba(79,195,247,0.28)' : 'rgba(79,195,247,0.15)';
+    ctx.fill();
+
+    // Stroke
+    ctx.strokeStyle = isSelected ? '#7dd8f8' : '#4fc3f7';
+    ctx.lineWidth = isSelected ? 2 : 1.5;
+    ctx.stroke();
+
+    if (isSelected || isDragging) ctx.restore();
+
+    // Label
+    ctx.font = `bold 11px Syne, sans-serif`;
+    ctx.fillStyle = '#a0d8ef';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(isl.id, cx, cz);
+
+    // Resize handle (right edge)
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.arc(cx + rx, cz, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#4fc3f7';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cz + rz, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#4fc3f7';
+      ctx.fill();
+    }
+  });
+}
+
+function drawFinalPlatform() {
+  const cx = wx(finalPlatform.x);
+  const cz = wz(finalPlatform.z);
+  const r = finalPlatform.radius * CELL;
+
+  ctx.save();
+  ctx.shadowColor = '#ffd700';
+  ctx.shadowBlur = 20;
+
+  ctx.beginPath();
+  ctx.arc(cx, cz, r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 200, 0, 0.12)';
+  ctx.fill();
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+
+  // Gem icon hint
+  ctx.font = 'bold 12px Syne, sans-serif';
+  ctx.fillStyle = '#ffd700';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('⬡', cx, cz - 6);
+  ctx.font = '9px Space Mono, monospace';
+  ctx.fillStyle = 'rgba(255,200,0,0.6)';
+  ctx.fillText('FINAL', cx, cz + 8);
+}
+
+function drawWallLabels() {
+  ctx.font = '10px Syne, sans-serif';
+  ctx.fillStyle = 'rgba(255,76,0,0.4)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('NORTH  ◆  PRIMARY SPAWN', wx(ROOM.width / 2), wz(0) + 4);
+
+  ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.translate(wx(ROOM.width) - 4, wz(ROOM.depth / 2));
+  ctx.rotate(Math.PI / 2);
+  ctx.fillStyle = 'rgba(255,76,0,0.25)';
+  ctx.fillText('EAST', 0, 0);
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(wx(0) + 4, wz(ROOM.depth / 2));
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = 'rgba(255,76,0,0.25)';
+  ctx.fillText('WEST', 0, 0);
+  ctx.restore();
+}
+
+// ─── INTERACTION ─────────────────────────────────────────────────────────────
+let selectedIsland = null;
+let dragState = null; // { type: 'move'|'resize-rx'|'resize-rz', idx, startX, startZ, origX, origZ, origRx, origRz }
+
+function hitTestIsland(px, py) {
+  for (let i = islands.length - 1; i >= 0; i--) {
+    const isl = islands[i];
+    const cx = wx(isl.x), cz = wz(isl.z);
+    const rx = isl.rx * CELL, rz = isl.rz * CELL;
+
+    // Check resize handles first (right edge, bottom edge)
+    if (Math.hypot(px - (cx + rx), py - cz) < 8) return { idx: i, type: 'resize-rx' };
+    if (Math.hypot(px - cx, py - (cz + rz)) < 8) return { idx: i, type: 'resize-rz' };
+
+    // Check ellipse interior
+    const dx = (px - cx) / rx, dz = (py - cz) / rz;
+    if (dx * dx + dz * dz <= 1) return { idx: i, type: 'move' };
+  }
+  return null;
+}
+
+canvas.addEventListener('mousedown', e => {
+  const { px, py } = canvasPos(e);
+  const hit = hitTestIsland(px, py);
+  if (hit) {
+    selectedIsland = hit.idx;
+    dragState = {
+      type: hit.type,
+      idx: hit.idx,
+      startPx: px,
+      startPy: py,
+      origX: islands[hit.idx].x,
+      origZ: islands[hit.idx].z,
+      origRx: islands[hit.idx].rx,
+      origRz: islands[hit.idx].rz,
+    };
+    updateSidebar();
+    draw();
+    e.preventDefault();
+  } else {
+    selectedIsland = null;
+    updateSidebar();
+    draw();
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  const { px, py } = canvasPos(e);
+
+  // Cursor style
+  const hit = hitTestIsland(px, py);
+  if (hit) {
+    canvas.style.cursor = hit.type === 'move' ? 'grab' : 'nwse-resize';
+  } else {
+    canvas.style.cursor = 'crosshair';
+  }
+
+  // Update footer cursor pos
+  const wx_ = sx(px), wz_ = sz(py);
+  if (wx_ >= 0 && wx_ <= ROOM.width && wz_ >= 0 && wz_ <= ROOM.depth) {
+    document.getElementById('cursor-pos').textContent =
+      `${wx_.toFixed(2)}m, ${wz_.toFixed(2)}m  (${(wx_ * 3.281).toFixed(1)}ft, ${(wz_ * 3.281).toFixed(1)}ft)`;
+  }
+
+  if (!dragState) return;
+  canvas.style.cursor = dragState.type === 'move' ? 'grabbing' : 'nwse-resize';
+
+  const dx = (px - dragState.startPx) / CELL;
+  const dz = (py - dragState.startPy) / CELL;
+  const isl = islands[dragState.idx];
+
+  if (dragState.type === 'move') {
+    isl.x = Math.max(isl.rx, Math.min(ROOM.width - isl.rx, dragState.origX + dx));
+    isl.z = Math.max(isl.rz, Math.min(ROOM.depth - isl.rz, dragState.origZ + dz));
+  } else if (dragState.type === 'resize-rx') {
+    isl.rx = Math.max(0.2, Math.min(2.0, dragState.origRx + dx));
+  } else if (dragState.type === 'resize-rz') {
+    isl.rz = Math.max(0.2, Math.min(2.0, dragState.origRz + dz));
+  }
+
+  updateSidebar();
+  updateDistReadout(isl);
+  draw();
+});
+
+canvas.addEventListener('mouseup', () => {
+  dragState = null;
+  document.getElementById('dist-readout').classList.remove('active');
+  document.getElementById('dist-readout').textContent = 'Drag an island to see edge-to-edge distances';
+  draw();
+});
+
+canvas.addEventListener('mouseleave', () => {
+  dragState = null;
+  document.getElementById('cursor-pos').textContent = '—';
+});
+
+function canvasPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    px: (e.clientX - rect.left) * (canvas.width / rect.width),
+    py: (e.clientY - rect.top) * (canvas.height / rect.height),
+  };
+}
+
+function updateDistReadout(isl) {
+  const dr = document.getElementById('dist-readout');
+  dr.classList.add('active');
+
+  // Find nearest neighbor
+  let nearest = null, nearestDist = Infinity;
+  islands.forEach(other => {
+    if (other.id === isl.id) return;
+    const d = edgeToEdgeDist(isl, other);
+    if (d < nearestDist) { nearestDist = d; nearest = other; }
+  });
+  if (!nearest) return;
+
+  const ft = (nearestDist * 3.281).toFixed(1);
+  const m = nearestDist.toFixed(2);
+  const cls = ft < 2 ? 'green' : ft < 4 ? 'yellow' : 'red';
+  const label = ft < 2 ? 'Easy hop' : ft < 4 ? 'Challenging' : 'Hard gap';
+
+  dr.innerHTML = `<div>Island ${isl.id} → Island ${nearest.id}</div><div class="dr-value ${cls}">${ft}ft / ${m}m</div><div style="color:var(--muted);font-size:10px">${label}</div>`;
+}
+
+// ─── SIDEBAR ─────────────────────────────────────────────────────────────────
+function updateSidebar() {
+  const list = document.getElementById('island-list');
+  list.innerHTML = '';
+  islands.forEach((isl, idx) => {
+    const row = document.createElement('div');
+    row.className = 'island-row' + (selectedIsland === idx ? ' selected' : '');
+    row.innerHTML = `<span class="iname">ISL-${isl.id}</span><span class="icoords">${isl.x.toFixed(1)}, ${isl.z.toFixed(1)}</span>`;
+    row.addEventListener('click', () => { selectedIsland = idx; updateSidebar(); draw(); });
+    list.appendChild(row);
+  });
+  // Final platform
+  const prow = document.createElement('div');
+  prow.className = 'island-row platform-row';
+  prow.innerHTML = `<span class="iname">FINAL</span><span class="icoords">${finalPlatform.x.toFixed(1)}, ${finalPlatform.z.toFixed(1)}</span>`;
+  list.appendChild(prow);
+}
+
+// ─── SPAWN ZONE CONTROLS ────────────────────────────────────────────────────
+function bindSpawnControl(wall, axis, id, valueId) {
+  const el = document.getElementById(id);
+  const vl = document.getElementById(valueId);
+  el.addEventListener('input', () => {
+    spawnZones[wall][axis] = parseFloat(el.value);
+    vl.textContent = parseFloat(el.value).toFixed(1) + 'm';
+    draw();
+  });
+}
+bindSpawnControl('north', 'xMin', 'north-xmin', 'north-xmin-v');
+bindSpawnControl('north', 'xMax', 'north-xmax', 'north-xmax-v');
+bindSpawnControl('east', 'zMin', 'east-zmin', 'east-zmin-v');
+bindSpawnControl('east', 'zMax', 'east-zmax', 'east-zmax-v');
+bindSpawnControl('west', 'zMin', 'west-zmin', 'west-zmin-v');
+bindSpawnControl('west', 'zMax', 'west-zmax', 'west-zmax-v');
+
+['north', 'east', 'west'].forEach(wall => {
+  document.getElementById(`spawn-${wall}`).addEventListener('change', e => {
+    spawnZones[wall].active = e.target.checked;
+    draw();
+  });
+});
+
+// ─── SAVE ────────────────────────────────────────────────────────────────────
+document.getElementById('btn-save').addEventListener('click', () => {
+  const layoutName = document.getElementById('layout-name').value || 'layout';
+  const data = {
+    room: { width: ROOM.width, depth: ROOM.depth },
+    islands: islands.map(i => ({
+      id: i.id,
+      x: parseFloat(i.x.toFixed(3)),
+      z: parseFloat(i.z.toFixed(3)),
+      rx: parseFloat(i.rx.toFixed(3)),
+      rz: parseFloat(i.rz.toFixed(3))
+    })),
+    finalPlatform: {
+      x: finalPlatform.x,
+      z: finalPlatform.z,
+      radius: finalPlatform.radius
+    },
+    spawnZones: {
+      north: { active: spawnZones.north.active, xMin: spawnZones.north.xMin, xMax: spawnZones.north.xMax },
+      east:  { active: spawnZones.east.active, zMin: spawnZones.east.zMin, zMax: spawnZones.east.zMax },
+      west:  { active: spawnZones.west.active, zMin: spawnZones.west.zMin, zMax: spawnZones.west.zMax },
+    }
+  };
+
+  fetch('/save-layout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data, null, 2)
+  }).then(() => {
+    const status = document.getElementById('save-status');
+    status.classList.add('show');
+    setTimeout(() => status.classList.remove('show'), 2500);
+  });
+
+  const status = document.getElementById('save-status');
+  status.classList.add('show');
+  setTimeout(() => status.classList.remove('show'), 2500);
+});
+
+// ─── RESET ───────────────────────────────────────────────────────────────────
+document.getElementById('btn-reset').addEventListener('click', () => {
+  islands = [
+    { id: 1, x: 2.0, z: 8.5, rx: 0.55, rz: 0.40 },
+    { id: 2, x: 4.5, z: 8.0, rx: 0.60, rz: 0.38 },
+    { id: 3, x: 7.2, z: 7.8, rx: 0.50, rz: 0.42 },
+    { id: 4, x: 1.5, z: 6.2, rx: 0.65, rz: 0.36 },
+    { id: 5, x: 5.0, z: 6.0, rx: 0.55, rz: 0.44 },
+    { id: 6, x: 8.0, z: 5.5, rx: 0.60, rz: 0.40 },
+    { id: 7, x: 2.8, z: 4.0, rx: 0.58, rz: 0.38 },
+    { id: 8, x: 6.5, z: 3.5, rx: 0.62, rz: 0.40 },
+  ];
+  selectedIsland = null;
+  dragState = null;
+  updateSidebar();
+  draw();
+});
+
+// ─── RESIZE ──────────────────────────────────────────────────────────────────
+const ro = new ResizeObserver(() => { resizeCanvas(); draw(); });
+ro.observe(wrap);
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+resizeCanvas();
+updateSidebar();
+draw();
+</script>
+</body>
+</html>
