@@ -270,7 +270,10 @@
         _checkLava() {
           // Skip if already in a hit cooldown, or game over, or level complete
           if (this.hitCooldown > 0 || this.gameOver || this.levelComplete) return;
-          const cam = this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null;
+          const renderer = xb.getRenderer ? xb.getRenderer() : null;
+          const cam = (renderer && renderer.xr && renderer.xr.isPresenting)
+            ? renderer.xr.getCamera()
+            : (this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null);
           if (!cam) return;
 
           // Convert scene camera position to world coordinates
@@ -453,7 +456,10 @@
         // ── FIREBALL HIT ──────────────────────────────────────────
         _checkHit() {
           if (this.hitCooldown > 0) return;
-          const cam = this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null;
+          const renderer = xb.getRenderer ? xb.getRenderer() : null;
+          const cam = (renderer && renderer.xr && renderer.xr.isPresenting)
+            ? renderer.xr.getCamera()
+            : (this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null);
           if (!cam) return;
           for (const fb of this.fireballs) {
             if (fb.state !== 'active') continue;
@@ -483,7 +489,10 @@
         // ── GEM COLLECTION ────────────────────────────────────────
         _checkGem() {
           if (this.gemCollected || !this.gemMesh?.visible) return;
-          const cam = this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null;
+          const renderer = xb.getRenderer ? xb.getRenderer() : null;
+          const cam = (renderer && renderer.xr && renderer.xr.isPresenting)
+            ? renderer.xr.getCamera()
+            : (this.parent ? this.parent.children.find(c => c.type === 'PerspectiveCamera') : null);
           if (!cam) return;
           if (cam.position.distanceTo(this.platformPos) < this.layout.finalPlatform.radius + 0.5) {
             this.gemCollected = true; this.levelComplete = true;
